@@ -10,8 +10,13 @@ app.use(cors());
 app.use(express.json());
 
 // Health check endpoint
+app.get('/', (req, res) => {
+  res.json({ status: 'Server is running!', message: 'Competing Leaders Backend' });
+});
+
+// Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'Server is running!' });
+  res.json({ status: 'OK', timestamp: new Date() });
 });
 
 // Start a new game
@@ -21,7 +26,7 @@ app.post('/api/game/start', async (req, res) => {
     
     const game = await prisma.game.create({
       data: {
-        userId,
+        userId: userId || 'anonymous',
         state: {
           stability: 75,
           tech: 55,
@@ -83,4 +88,5 @@ app.get('/api/stories/public', async (req, res) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
