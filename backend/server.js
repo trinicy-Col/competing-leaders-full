@@ -6,14 +6,17 @@ require('dotenv').config();
 const app = express();
 const prisma = new PrismaClient();
 
-// Configure CORS
+// Configure CORS - IMPORTANT!
 app.use(cors({
   origin: [
     'http://localhost:3000',
     'https://competing-leaders.vercel.app',
+    'https://competing-leaders-full.vercel.app',
     'https://*.vercel.app'
   ],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
@@ -27,7 +30,7 @@ app.get('/', (req, res) => {
   });
 });
 
-// Test database connection - ADD THIS ENDPOINT!
+// Test database connection
 app.get('/api/test-db', async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -40,13 +43,15 @@ app.get('/api/test-db', async (req, res) => {
   }
 });
 
-// Start a new game
+// START A NEW GAME - THIS IS THE MISSING ENDPOINT!
 app.post('/api/game/start', async (req, res) => {
   try {
     const { userId = 'anonymous-' + Date.now() } = req.body;
     
-    // For now, return mock data to test
-    const mockGame = {
+    console.log('Starting game for user:', userId);
+    
+    // Create mock game data (we'll use database later)
+    const gameData = {
       id: 'game-' + Date.now(),
       userId: userId,
       state: {
@@ -62,7 +67,8 @@ app.post('/api/game/start', async (req, res) => {
       createdAt: new Date().toISOString()
     };
     
-    res.json(mockGame);
+    console.log('Game created:', gameData.id);
+    res.json(gameData);
     
   } catch (error) {
     console.error('Error starting game:', error);
@@ -73,9 +79,30 @@ app.post('/api/game/start', async (req, res) => {
   }
 });
 
+// Save game decision
+app.post('/api/game/save', async (req, res) => {
+  try {
+    const { gameId, decision, state } = req.body;
+    
+    // Mock save for now
+    res.json({
+      success: true,
+      gameId: gameId,
+      message: 'Decision saved'
+    });
+    
+  } catch (error) {
+    console.error('Error saving game:', error);
+    res.status(500).json({ 
+      error: 'Failed to save game',
+      message: error.message 
+    });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Database URL exists: ${!!process.env.DATABASE_URL}`);
+  console.log(`CORS enabled for frontend`);
 });
