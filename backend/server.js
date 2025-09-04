@@ -11,9 +11,8 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'https://competing-leaders.vercel.app',
-    'https://*.vercel.app',
-    process.env.FRONTEND_URL
-  ].filter(Boolean),
+    'https://*.vercel.app'
+  ],
   credentials: true
 }));
 
@@ -28,11 +27,11 @@ app.get('/', (req, res) => {
   });
 });
 
-// Test database connection
+// Test database connection - ADD THIS ENDPOINT!
 app.get('/api/test-db', async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: 'Database connected!' });
+    res.json({ status: 'Database connected successfully!' });
   } catch (error) {
     res.status(500).json({ 
       status: 'Database connection failed',
@@ -41,12 +40,12 @@ app.get('/api/test-db', async (req, res) => {
   }
 });
 
-// Start a new game (simplified for testing)
+// Start a new game
 app.post('/api/game/start', async (req, res) => {
   try {
     const { userId = 'anonymous-' + Date.now() } = req.body;
     
-    // For now, just return mock data to test the connection
+    // For now, return mock data to test
     const mockGame = {
       id: 'game-' + Date.now(),
       userId: userId,
@@ -64,25 +63,6 @@ app.post('/api/game/start', async (req, res) => {
     };
     
     res.json(mockGame);
-    
-    /* Uncomment this after database is working:
-    const game = await prisma.game.create({
-      data: {
-        userId: userId,
-        state: {
-          stability: 75,
-          tech: 55,
-          economic: 70,
-          environment: 45,
-          social: 60,
-          military: 40
-        },
-        decisions: [],
-        currentScene: 1
-      }
-    });
-    res.json(game);
-    */
     
   } catch (error) {
     console.error('Error starting game:', error);
