@@ -69,12 +69,16 @@ export default function Home() {
   const generateScenario = async () => {
     setLoading(true);
     
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://competing-leaders-full-production.up.railway.app';
+    console.log('Calling backend at:', apiUrl);
+    
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-      
       const response = await fetch(`${apiUrl}/api/game/scenario`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify({
           currentScene: gameState.currentScene,
           previousDecision: gameState.decisions[gameState.decisions.length - 1] || null,
@@ -83,11 +87,16 @@ export default function Home() {
         })
       });
 
+      console.log('Response status:', response.status);
+
       if (!response.ok) {
-        throw new Error('Failed to generate scenario');
+        const errorText = await response.text();
+        console.error('API Error:', errorText);
+        throw new Error(`API returned ${response.status}`);
       }
 
       const scenario = await response.json();
+      console.log('Received scenario:', scenario);
       
       setCurrentScenario(scenario);
       
@@ -97,19 +106,24 @@ export default function Home() {
           ...prev,
           currentYear: scenario.year,
           universeState: {
-            stability: Math.max(0, Math.min(100, prev.universeState.stability + scenario.stateChanges.stability)),
-            tech: Math.max(0, Math.min(100, prev.universeState.tech + scenario.stateChanges.tech)),
-            economic: Math.max(0, Math.min(100, prev.universeState.economic + scenario.stateChanges.economic)),
-            environment: Math.max(0, Math.min(100, prev.universeState.environment + scenario.stateChanges.environment)),
-            social: Math.max(0, Math.min(100, prev.universeState.social + scenario.stateChanges.social)),
-            military: Math.max(0, Math.min(100, prev.universeState.military + scenario.stateChanges.military))
+            stability: Math.max(0, Math.min(100, prev.universeState.stability + (scenario.stateChanges?.stability || 0))),
+            tech: Math.max(0, Math.min(100, prev.universeState.tech + (scenario.stateChanges?.tech || 0))),
+            economic: Math.max(0, Math.min(100, prev.universeState.economic + (scenario.stateChanges?.economic || 0))),
+            environment: Math.max(0, Math.min(100, prev.universeState.environment + (scenario.stateChanges?.environment || 0))),
+            social: Math.max(0, Math.min(100, prev.universeState.social + (scenario.stateChanges?.social || 0))),
+            military: Math.max(0, Math.min(100, prev.universeState.military + (scenario.stateChanges?.military || 0)))
           }
+        }));
+      } else {
+        setGameState(prev => ({
+          ...prev,
+          currentYear: scenario.year
         }));
       }
       
     } catch (error) {
       console.error('Error generating scenario:', error);
-      // Fallback for testing without backend
+      // Fallback scenario
       setCurrentScenario({
         leader: "Crisis Manager (Emergency)",
         year: gameState.currentYear + 2,
@@ -123,14 +137,16 @@ export default function Home() {
     setLoading(false);
   };
 
-  const startGame = () => {
+  const startGame = async () => {
     setGameStarted(true);
     setGameState(prev => ({
       ...prev,
       id: 'game-' + Date.now(),
       currentScene: 1
     }));
-    generateScenario();
+    
+    // Call generateScenario to get the first scenario
+    await generateScenario();
   };
 
   const submitDecision = async () => {
@@ -140,6 +156,8 @@ export default function Home() {
     }
 
     if (currentScenario) {
+      setLoading(true);
+      
       // Store the decision
       const newDecision = {
         scene: gameState.currentScene,
@@ -148,29 +166,32 @@ export default function Home() {
         decision: decision
       };
 
-      // Update state
+      // Update state with new scene number
+      const newScene = gameState.currentScene + 1;
+      
+      // Update game state
       setGameState(prev => ({
         ...prev,
         decisions: [...prev.decisions, newDecision],
-        currentScene: prev.currentScene + 1
+        currentScene: newScene
       }));
 
       // Clear input
       setDecision('');
 
       // Check if game is complete
-      if (gameState.currentScene >= gameState.maxScenes) {
+      if (newScene > gameState.maxScenes) {
+        setLoading(false);
         alert(`Game Complete! You've shaped humanity's path through ${gameState.decisions.length + 1} crucial decisions.`);
       } else {
-        // Generate next scenario
-        setTimeout(() => {
-          generateScenario();
+        // Wait a moment for state to update, then generate next scenario
+        setTimeout(async () => {
+          await generateScenario();
         }, 100);
       }
     }
   };
 
-  // Rest of your component remains the same (UI part)
   if (!gameStarted) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 text-white p-8">
@@ -269,23 +290,101 @@ export default function Home() {
           <h3 className="text-xl font-bold mb-6">State of Affairs</h3>
           
           <div className="space-y-4">
-            {Object.entries(gameState.universeState).map(([key, value]) => (
-              <div key={key}>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="capitalize">{key}</span>
-                  <span>{Math.round(value)}%</span>
-                </div>
-                <div className="w-full bg-slate-700 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full transition-all duration-500 ${
-                      value > 60 ? 'bg-green-500' :
-                      value > 30 ? 'bg-yellow-500' : 'bg-red-500'
-                    }`}
-                    style={{ width: `${value}%` }}
-                  />
-                </div>
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span>Stability</span>
+                <span>{Math.round(gameState.universeState.stability)}%</span>
               </div>
-            ))}
+              <div className="w-full bg-slate-700 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-500 ${
+                    gameState.universeState.stability > 60 ? 'bg-green-500' :
+                    gameState.universeState.stability > 30 ? 'bg-yellow-500' : 'bg-red-500'
+                  }`}
+                  style={{ width: `${gameState.universeState.stability}%` }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span>Tech Level</span>
+                <span>{Math.round(gameState.universeState.tech)}%</span>
+              </div>
+              <div className="w-full bg-slate-700 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-500 ${
+                    gameState.universeState.tech > 60 ? 'bg-green-500' :
+                    gameState.universeState.tech > 30 ? 'bg-yellow-500' : 'bg-red-500'
+                  }`}
+                  style={{ width: `${gameState.universeState.tech}%` }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span>Economic Power</span>
+                <span>{Math.round(gameState.universeState.economic)}%</span>
+              </div>
+              <div className="w-full bg-slate-700 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-500 ${
+                    gameState.universeState.economic > 60 ? 'bg-green-500' :
+                    gameState.universeState.economic > 30 ? 'bg-yellow-500' : 'bg-red-500'
+                  }`}
+                  style={{ width: `${gameState.universeState.economic}%` }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span>Environment</span>
+                <span>{Math.round(gameState.universeState.environment)}%</span>
+              </div>
+              <div className="w-full bg-slate-700 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-500 ${
+                    gameState.universeState.environment > 60 ? 'bg-green-500' :
+                    gameState.universeState.environment > 30 ? 'bg-yellow-500' : 'bg-red-500'
+                  }`}
+                  style={{ width: `${gameState.universeState.environment}%` }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span>Social Cohesion</span>
+                <span>{Math.round(gameState.universeState.social)}%</span>
+              </div>
+              <div className="w-full bg-slate-700 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-500 ${
+                    gameState.universeState.social > 60 ? 'bg-green-500' :
+                    gameState.universeState.social > 30 ? 'bg-yellow-500' : 'bg-red-500'
+                  }`}
+                  style={{ width: `${gameState.universeState.social}%` }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span>Military Tension</span>
+                <span>{Math.round(gameState.universeState.military)}%</span>
+              </div>
+              <div className="w-full bg-slate-700 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-500 ${
+                    gameState.universeState.military > 60 ? 'bg-green-500' :
+                    gameState.universeState.military > 30 ? 'bg-yellow-500' : 'bg-red-500'
+                  }`}
+                  style={{ width: `${gameState.universeState.military}%` }}
+                />
+              </div>
+            </div>
           </div>
 
           <h3 className="text-xl font-bold mt-8 mb-4">Decision History</h3>
