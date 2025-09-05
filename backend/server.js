@@ -12,6 +12,7 @@ app.use(cors({
     'http://localhost:3000',
     'https://competing-leaders.vercel.app',
     'https://competing-leaders-full.vercel.app',
+    'https://competing-leaders-full-*.vercel.app',
     'https://*.vercel.app'
   ],
   credentials: true,
