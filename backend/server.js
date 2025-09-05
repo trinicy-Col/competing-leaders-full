@@ -1,3 +1,7 @@
+console.log('Starting Competing Leaders Backend...');
+const express = require('express');
+const cors = require('cors');
+// ... rest of your code
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
