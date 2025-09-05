@@ -36,6 +36,14 @@ interface Scenario {
   timeframe: string;
   competingForces: string;
   consequences?: string;
+  stateChanges?: {
+    stability: number;
+    tech: number;
+    economic: number;
+    environment: number;
+    social: number;
+    military: number;
+  };
 }
 
 export default function Home() {
@@ -60,7 +68,6 @@ export default function Home() {
   const [decision, setDecision] = useState<string>('');
 
   const startGame = () => {
-  // Don't call any API, just start the game directly
     setGameStarted(true);
     setGameState(prev => ({
       ...prev,
@@ -70,21 +77,68 @@ export default function Home() {
     generateScenario();
   };
 
-  const generateScenario = () => {
-    const mockScenario: Scenario = {
-      leader: "CEO of Nexus Communications (Corporate/Technological)",
-      year: 2027,
-      scenario: "A massive solar storm has knocked out 40% of global internet infrastructure. Governments are panicking, economies are crashing, and rival tech companies are trying to capitalize on the chaos. Your company has the technology to restore communications within 72 hours, but it would require redirecting resources from your secret military contracts and revealing proprietary technology to competitors.",
-      stakes: "Control over global communications infrastructure vs company secrets",
-      timeframe: "72 hours before complete infrastructure collapse",
-      competingForces: "Government agencies demanding access, rival corporations, military contractors"
-    };
-    
-    setCurrentScenario(mockScenario);
-    setGameState(prev => ({
-      ...prev,
-      currentYear: mockScenario.year
-    }));
+  const generateScenario = async () => {
+    setLoading(true);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiUrl}/api/game/scenario`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentScene: gameState.currentScene,
+          previousDecision: gameState.decisions[gameState.decisions.length - 1] || null,
+          universeState: gameState.universeState,
+          decisions: gameState.decisions
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to generate scenario');
+      }
+      
+      const scenario = await response.json();
+      
+      setCurrentScenario(scenario);
+      
+      // Update universe state with changes from the scenario
+      if (scenario.stateChanges) {
+        setGameState(prev => ({
+          ...prev,
+          currentYear: scenario.year,
+          universeState: {
+            stability: Math.max(0, Math.min(100, prev.universeState.stability + (scenario.stateChanges?.stability || 0))),
+            tech: Math.max(0, Math.min(100, prev.universeState.tech + (scenario.stateChanges?.tech || 0))),
+            economic: Math.max(0, Math.min(100, prev.universeState.economic + (scenario.stateChanges?.economic || 0))),
+            environment: Math.max(0, Math.min(100, prev.universeState.environment + (scenario.stateChanges?.environment || 0))),
+            social: Math.max(0, Math.min(100, prev.universeState.social + (scenario.stateChanges?.social || 0))),
+            military: Math.max(0, Math.min(100, prev.universeState.military + (scenario.stateChanges?.military || 0)))
+          }
+        }));
+      } else {
+        setGameState(prev => ({
+          ...prev,
+          currentYear: scenario.year
+        }));
+      }
+      
+    } catch (error) {
+      console.error('Error generating scenario:', error);
+      // Fallback scenario if API fails
+      const fallbackScenario: Scenario = {
+        leader: "CEO of Nexus Communications (Corporate/Technological)",
+        year: 2027,
+        scenario: "A massive solar storm has knocked out 40% of global internet infrastructure. Governments are panicking, economies are crashing, and rival tech companies are trying to capitalize on the chaos. Your company has the technology to restore communications within 72 hours, but it would require redirecting resources from your secret military contracts and revealing proprietary technology to competitors.",
+        stakes: "Control over global communications infrastructure vs company secrets",
+        timeframe: "72 hours before complete infrastructure collapse",
+        competingForces: "Government agencies demanding access, rival corporations, military contractors"
+      };
+      setCurrentScenario(fallbackScenario);
+      setGameState(prev => ({
+        ...prev,
+        currentYear: fallbackScenario.year
+      }));
+    }
+    setLoading(false);
   };
 
   const submitDecision = async () => {
@@ -112,11 +166,13 @@ export default function Home() {
 
     if (gameState.currentScene >= gameState.maxScenes) {
       alert('Game Complete! Your story has been written.');
+      setLoading(false);
     } else {
-      generateScenario();
+      // Generate the next scenario after updating state
+      setTimeout(() => {
+        generateScenario();
+      }, 100);
     }
-    
-    setLoading(false);
   };
 
   if (!gameStarted) {
@@ -155,7 +211,12 @@ export default function Home() {
               Scene {gameState.currentScene} of {gameState.maxScenes} | Year: {gameState.currentYear}
             </div>
 
-            {currentScenario && (
+            {loading ? (
+              <div className="bg-slate-800 p-8 rounded-lg text-center">
+                <p className="text-xl text-purple-400">Generating scenario...</p>
+                <p className="text-sm text-gray-400 mt-2">The AI Game Master is creating your next challenge</p>
+              </div>
+            ) : currentScenario && (
               <div className="space-y-4">
                 <div className="bg-gradient-to-r from-blue-900 to-purple-900 p-4 rounded-lg">
                   <h2 className="text-xl font-bold">{currentScenario.leader}</h2>
@@ -189,6 +250,7 @@ export default function Home() {
                     onChange={(e) => setDecision(e.target.value)}
                     className="w-full p-4 bg-slate-800 border border-slate-600 rounded-lg min-h-[120px] focus:outline-none focus:border-purple-500"
                     placeholder="Enter your decision..."
+                    disabled={loading}
                   />
                   <button
                     onClick={submitDecision}
