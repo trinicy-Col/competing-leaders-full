@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // Type definitions
 interface UniverseState {
@@ -35,7 +35,6 @@ interface Scenario {
   stakes: string;
   timeframe: string;
   competingForces: string;
-  consequences?: string;
   stateChanges?: {
     stability: number;
     tech: number;
@@ -50,7 +49,7 @@ export default function Home() {
   const [gameState, setGameState] = useState<GameState>({
     currentScene: 0,
     maxScenes: 12,
-    currentYear: 2027,
+    currentYear: 2025,
     decisions: [],
     universeState: {
       stability: 75,
@@ -67,20 +66,12 @@ export default function Home() {
   const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null);
   const [decision, setDecision] = useState<string>('');
 
-  const startGame = () => {
-    setGameStarted(true);
-    setGameState(prev => ({
-      ...prev,
-      id: 'game-' + Date.now(),
-      currentScene: 1
-    }));
-    generateScenario();
-  };
-
   const generateScenario = async () => {
     setLoading(true);
+    
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      
       const response = await fetch(`${apiUrl}/api/game/scenario`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -91,54 +82,55 @@ export default function Home() {
           decisions: gameState.decisions
         })
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to generate scenario');
       }
-      
+
       const scenario = await response.json();
       
       setCurrentScenario(scenario);
       
-      // Update universe state with changes from the scenario
+      // Update universe state if changes are provided
       if (scenario.stateChanges) {
         setGameState(prev => ({
           ...prev,
           currentYear: scenario.year,
           universeState: {
-            stability: Math.max(0, Math.min(100, prev.universeState.stability + (scenario.stateChanges?.stability || 0))),
-            tech: Math.max(0, Math.min(100, prev.universeState.tech + (scenario.stateChanges?.tech || 0))),
-            economic: Math.max(0, Math.min(100, prev.universeState.economic + (scenario.stateChanges?.economic || 0))),
-            environment: Math.max(0, Math.min(100, prev.universeState.environment + (scenario.stateChanges?.environment || 0))),
-            social: Math.max(0, Math.min(100, prev.universeState.social + (scenario.stateChanges?.social || 0))),
-            military: Math.max(0, Math.min(100, prev.universeState.military + (scenario.stateChanges?.military || 0)))
+            stability: Math.max(0, Math.min(100, prev.universeState.stability + scenario.stateChanges.stability)),
+            tech: Math.max(0, Math.min(100, prev.universeState.tech + scenario.stateChanges.tech)),
+            economic: Math.max(0, Math.min(100, prev.universeState.economic + scenario.stateChanges.economic)),
+            environment: Math.max(0, Math.min(100, prev.universeState.environment + scenario.stateChanges.environment)),
+            social: Math.max(0, Math.min(100, prev.universeState.social + scenario.stateChanges.social)),
+            military: Math.max(0, Math.min(100, prev.universeState.military + scenario.stateChanges.military))
           }
-        }));
-      } else {
-        setGameState(prev => ({
-          ...prev,
-          currentYear: scenario.year
         }));
       }
       
     } catch (error) {
       console.error('Error generating scenario:', error);
-      // Fallback scenario if API fails
-      const fallbackScenario: Scenario = {
-        leader: "CEO of Nexus Communications (Corporate/Technological)",
-        year: 2027,
-        scenario: "A massive solar storm has knocked out 40% of global internet infrastructure. Governments are panicking, economies are crashing, and rival tech companies are trying to capitalize on the chaos. Your company has the technology to restore communications within 72 hours, but it would require redirecting resources from your secret military contracts and revealing proprietary technology to competitors.",
-        stakes: "Control over global communications infrastructure vs company secrets",
-        timeframe: "72 hours before complete infrastructure collapse",
-        competingForces: "Government agencies demanding access, rival corporations, military contractors"
-      };
-      setCurrentScenario(fallbackScenario);
-      setGameState(prev => ({
-        ...prev,
-        currentYear: fallbackScenario.year
-      }));
+      // Fallback for testing without backend
+      setCurrentScenario({
+        leader: "Crisis Manager (Emergency)",
+        year: gameState.currentYear + 2,
+        scenario: "A critical situation has emerged requiring immediate action. Your decision will shape the future.",
+        stakes: "Everything is at stake",
+        timeframe: "Time is running out",
+        competingForces: "Multiple factions compete for control"
+      });
     }
+    
     setLoading(false);
+  };
+
+  const startGame = () => {
+    setGameStarted(true);
+    setGameState(prev => ({
+      ...prev,
+      id: 'game-' + Date.now(),
+      currentScene: 1
+    }));
+    generateScenario();
   };
 
   const submitDecision = async () => {
@@ -147,34 +139,38 @@ export default function Home() {
       return;
     }
 
-    setLoading(true);
-    
     if (currentScenario) {
+      // Store the decision
+      const newDecision = {
+        scene: gameState.currentScene,
+        leader: currentScenario.leader,
+        year: currentScenario.year,
+        decision: decision
+      };
+
+      // Update state
       setGameState(prev => ({
         ...prev,
-        decisions: [...prev.decisions, {
-          scene: prev.currentScene,
-          leader: currentScenario.leader,
-          year: currentScenario.year,
-          decision: decision
-        }],
+        decisions: [...prev.decisions, newDecision],
         currentScene: prev.currentScene + 1
       }));
-    }
 
-    setDecision('');
+      // Clear input
+      setDecision('');
 
-    if (gameState.currentScene >= gameState.maxScenes) {
-      alert('Game Complete! Your story has been written.');
-      setLoading(false);
-    } else {
-      // Generate the next scenario after updating state
-      setTimeout(() => {
-        generateScenario();
-      }, 100);
+      // Check if game is complete
+      if (gameState.currentScene >= gameState.maxScenes) {
+        alert(`Game Complete! You've shaped humanity's path through ${gameState.decisions.length + 1} crucial decisions.`);
+      } else {
+        // Generate next scenario
+        setTimeout(() => {
+          generateScenario();
+        }, 100);
+      }
     }
   };
 
+  // Rest of your component remains the same (UI part)
   if (!gameStarted) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 text-white p-8">
@@ -185,7 +181,10 @@ export default function Home() {
           <p className="text-xl mb-8 text-gray-300">
             Experience humanity's journey through time by taking on different powerful roles across history and the future.
           </p>
-          <button 
+          <p className="text-md mb-8 text-gray-400">
+            Every playthrough is unique. AI generates scenarios based on your decisions.
+          </p>
+          <button
             onClick={startGame}
             className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-8 py-4 rounded-lg text-xl font-semibold transition-all duration-200 hover:scale-105"
             disabled={loading}
@@ -213,8 +212,8 @@ export default function Home() {
 
             {loading ? (
               <div className="bg-slate-800 p-8 rounded-lg text-center">
-                <p className="text-xl text-purple-400">Generating scenario...</p>
-                <p className="text-sm text-gray-400 mt-2">The AI Game Master is creating your next challenge</p>
+                <p className="text-xl text-purple-400">AI is creating your scenario...</p>
+                <p className="text-sm text-gray-400 mt-2">Generating unique situation based on your previous decisions</p>
               </div>
             ) : currentScenario && (
               <div className="space-y-4">
@@ -268,102 +267,25 @@ export default function Home() {
         {/* Sidebar - State of Affairs */}
         <div className="w-80 bg-slate-800 p-6 border-l border-slate-700">
           <h3 className="text-xl font-bold mb-6">State of Affairs</h3>
+          
           <div className="space-y-4">
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span>Stability</span>
-                <span>{gameState.universeState.stability}%</span>
+            {Object.entries(gameState.universeState).map(([key, value]) => (
+              <div key={key}>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="capitalize">{key}</span>
+                  <span>{Math.round(value)}%</span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full transition-all duration-500 ${
+                      value > 60 ? 'bg-green-500' :
+                      value > 30 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${value}%` }}
+                  />
+                </div>
               </div>
-              <div className="w-full bg-slate-700 rounded-full h-2">
-                <div 
-                  className={`h-2 rounded-full transition-all duration-500 ${
-                    gameState.universeState.stability > 60 ? 'bg-green-500' : 
-                    gameState.universeState.stability > 30 ? 'bg-yellow-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${gameState.universeState.stability}%` }}
-                />
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span>Tech Level</span>
-                <span>{gameState.universeState.tech}%</span>
-              </div>
-              <div className="w-full bg-slate-700 rounded-full h-2">
-                <div 
-                  className={`h-2 rounded-full transition-all duration-500 ${
-                    gameState.universeState.tech > 60 ? 'bg-green-500' : 
-                    gameState.universeState.tech > 30 ? 'bg-yellow-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${gameState.universeState.tech}%` }}
-                />
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span>Economic Power</span>
-                <span>{gameState.universeState.economic}%</span>
-              </div>
-              <div className="w-full bg-slate-700 rounded-full h-2">
-                <div 
-                  className={`h-2 rounded-full transition-all duration-500 ${
-                    gameState.universeState.economic > 60 ? 'bg-green-500' : 
-                    gameState.universeState.economic > 30 ? 'bg-yellow-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${gameState.universeState.economic}%` }}
-                />
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span>Environment</span>
-                <span>{gameState.universeState.environment}%</span>
-              </div>
-              <div className="w-full bg-slate-700 rounded-full h-2">
-                <div 
-                  className={`h-2 rounded-full transition-all duration-500 ${
-                    gameState.universeState.environment > 60 ? 'bg-green-500' : 
-                    gameState.universeState.environment > 30 ? 'bg-yellow-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${gameState.universeState.environment}%` }}
-                />
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span>Social Cohesion</span>
-                <span>{gameState.universeState.social}%</span>
-              </div>
-              <div className="w-full bg-slate-700 rounded-full h-2">
-                <div 
-                  className={`h-2 rounded-full transition-all duration-500 ${
-                    gameState.universeState.social > 60 ? 'bg-green-500' : 
-                    gameState.universeState.social > 30 ? 'bg-yellow-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${gameState.universeState.social}%` }}
-                />
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span>Military Tension</span>
-                <span>{gameState.universeState.military}%</span>
-              </div>
-              <div className="w-full bg-slate-700 rounded-full h-2">
-                <div 
-                  className={`h-2 rounded-full transition-all duration-500 ${
-                    gameState.universeState.military > 60 ? 'bg-green-500' : 
-                    gameState.universeState.military > 30 ? 'bg-yellow-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${gameState.universeState.military}%` }}
-                />
-              </div>
-            </div>
+            ))}
           </div>
 
           <h3 className="text-xl font-bold mt-8 mb-4">Decision History</h3>
