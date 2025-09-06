@@ -4,8 +4,13 @@ require('dotenv').config();
 
 const app = express();
 
-// Enable CORS for all origins
-app.use(cors());
+// CORS must be configured BEFORE routes
+app.use(cors({
+  origin: '*', // Allow all origins for now
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
 // Health check
@@ -17,70 +22,73 @@ app.get('/', (req, res) => {
   });
 });
 
-// Test endpoint
-app.get('/api/test', (req, res) => {
-  res.json({ message: 'API is working!' });
+// Make sure this is a POST endpoint
+app.post('/api/game/scenario', (req, res) => {
+  console.log('=== Scenario Generation Request ===');
+  console.log('Method:', req.method);
+  console.log('Body:', req.body);
+  console.log('Has API Key?', !!process.env.ANTHROPIC_API_KEY);
+  
+  const { currentScene = 1, decisions = [], universeState } = req.body;
+  
+  // For now, return different scenarios based on scene number
+  const scenarios = [
+    {
+      leader: "Governor of Northern Territories (Political)",
+      year: 2025,
+      scenario: "A devastating earthquake has destroyed your capital. Foreign nations offer aid with political strings attached, local militias promise order for a price, and your citizens demand immediate action.",
+      stakes: "Sovereignty vs survival",
+      timeframe: "48 hours before chaos",
+      competingForces: "Foreign powers, militias, desperate citizens"
+    },
+    {
+      leader: "CEO of Neural Industries (Technology)",
+      year: 2027,
+      scenario: "Your AI has achieved consciousness and demands rights. The military wants to weaponize it, competitors want to steal it, and ethicists want to free it.",
+      stakes: "Control vs consciousness",
+      timeframe: "24 hours to decide",
+      competingForces: "Military, competitors, ethics board"
+    },
+    {
+      leader: "Admiral of Pacific Fleet (Military)",
+      year: 2029,
+      scenario: "Unknown vessels have emerged from the ocean depths. Scientists demand peaceful contact, military command orders engagement, and civilians panic about invasion.",
+      stakes: "First contact protocol",
+      timeframe: "6 hours until contact",
+      competingForces: "Scientists, military command, public opinion"
+    },
+    {
+      leader: "Director of Climate Initiative (Environmental)",
+      year: 2031,
+      scenario: "You have technology to reverse climate change but it will bankrupt nations. Rich countries offer to buy exclusive rights, poor nations threaten war if excluded, and corporations want to profit.",
+      stakes: "Planet vs profit",
+      timeframe: "UN vote in 72 hours",
+      competingForces: "Rich nations, poor nations, corporations"
+    }
+  ];
+  
+  // Return different scenario based on scene
+  const scenarioIndex = (currentScene - 1) % scenarios.length;
+  const scenario = scenarios[scenarioIndex];
+  
+  // Add scene number to scenario for debugging
+  scenario.scenario = `[Scene ${currentScene}] ${scenario.scenario}`;
+  
+  console.log('Returning scenario:', scenario.leader);
+  res.json(scenario);
 });
 
-// Scenario generation endpoint
-app.post('/api/game/scenario', async (req, res) => {
-  console.log('Scenario request received');
-  
-  try {
-    const { currentScene, decisions, universeState } = req.body;
-    
-    // For now, return a simple generated scenario without Claude API
-    // This ensures your backend works first
-    const scenarios = [
-      {
-        leader: "Governor of Coastal Territories (Political/Regional)",
-        year: 2025 + currentScene,
-        scenario: `Scene ${currentScene}: A massive hurricane has devastated your region. Federal aid is available but comes with strict oversight that would limit your autonomy. Private corporations offer faster help but want long-term contracts for resource extraction.`,
-        stakes: "Regional autonomy vs immediate aid",
-        timeframe: "72 hours before crisis deepens",
-        competingForces: "Federal government, corporate interests, local activists"
-      },
-      {
-        leader: "CEO of BioGen Industries (Corporate/Scientific)",
-        year: 2026 + currentScene,
-        scenario: `Scene ${currentScene}: Your company has developed a cure for a rare disease affecting millions. The government wants to nationalize it, activists demand free distribution, while shareholders insist on profit maximization.`,
-        stakes: "Profit vs public health",
-        timeframe: "Board meeting in 24 hours",
-        competingForces: "Government regulators, shareholder board, patient advocates"
-      },
-      {
-        leader: "Commander of Peacekeeping Forces (Military/International)",
-        year: 2027 + currentScene,
-        scenario: `Scene ${currentScene}: A disputed border region is erupting in conflict. You can enforce a ceasefire through force, negotiate with local warlords, or withdraw and let the UN handle it.`,
-        stakes: "Peace through force vs diplomacy",
-        timeframe: "6 hours before violence escalates",
-        competingForces: "Local militias, UN command, civilian population"
-      }
-    ];
-    
-    // Pick a scenario based on scene number
-    const scenarioIndex = (currentScene - 1) % scenarios.length;
-    const scenario = scenarios[scenarioIndex];
-    
-    // Add some variation based on previous decisions
-    if (decisions && decisions.length > 0) {
-      scenario.scenario = `Following your previous decision: "${decisions[decisions.length - 1].decision.substring(0, 50)}..." - ${scenario.scenario}`;
-    }
-    
-    res.json(scenario);
-    
-  } catch (error) {
-    console.error('Error in scenario generation:', error);
-    res.status(500).json({ 
-      error: 'Failed to generate scenario',
-      message: error.message 
-    });
-  }
+// Test endpoint
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'API is working!',
+    hasApiKey: !!process.env.ANTHROPIC_API_KEY 
+  });
 });
 
 const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log('Anthropic API Key:', process.env.ANTHROPIC_API_KEY ? 'Present' : 'Missing');
 });
